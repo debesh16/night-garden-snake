@@ -4,6 +4,8 @@ My Windows console Snake game, rebuilt for the web. The game rules are still wri
 
 The console version (`snake.c`) still builds and plays the same, and runs on the same C core. An optional C CGI backend uses that core too, so it can re-simulate submitted runs and verify scores instead of trusting the browser.
 
+**Play it online: https://debesh16.github.io/night-garden-snake/**
+
 ## Folder layout
 
 ```
@@ -157,7 +159,7 @@ To connect the game, set `API_BASE` in `web/js/online.js`. With `API_BASE` empty
 - Rhythm mode needs Web Audio for its music. If the browser blocks audio, the snake still moves on the same beat using a timer.
 - Ghost replays and the share format are tied to this version of the core. Changing the rules in `core/` can make old ghosts replay differently.
 - Hex boards cannot be made in the editor; it supports walls, torus and Möbius edges.
-- `og:image` in `index.html` is a relative path. Some link-preview services need an absolute URL, so set it to the full address once the site is deployed.
+- `og:image` and `og:url` in `index.html` point at the GitHub Pages address. Change them if you host the game somewhere else.
 
 ## License
 

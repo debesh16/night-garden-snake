@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="en">
+<!-- data-portal: web | crazygames | poki | yandex | gamedistribution (set by tools/build-portals.sh) -->
+<html lang="en" data-portal="web">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cut">
@@ -12,9 +13,7 @@
 <meta property="og:url" content="https://debesh16.github.io/night-garden-snake/">
 <meta property="og:type" content="website">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&display=swap" rel="stylesheet">
+<link rel="preload" href="assets/fonts/bricolage-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -26,6 +25,7 @@
     <header class="brand">
       <h1 id="title">Snake</h1>
       <p class="tagline">A night-garden snake. Pick a way to play.</p>
+      <button class="btn btn-primary btn-hero" id="play-now">Play now</button>
     </header>
 
     <div id="welcome" class="banner" hidden></div>
@@ -104,6 +104,16 @@
         <div class="row">
           <button class="btn btn-primary" id="rw-hold">Hold to rewind</button>
           <button class="btn" id="rw-finish">Finish run</button>
+        </div>
+      </div>
+
+      <!-- out of rewinds: optional rewarded ad (portal builds only) -->
+      <div class="overlay overlay-soft" id="ov-bonus" hidden>
+        <h2>Out of rewinds</h2>
+        <p>Watch a short ad to get one more rewind.</p>
+        <div class="row">
+          <button class="btn btn-primary" id="bonus-watch">Watch ad: +1 rewind</button>
+          <button class="btn" id="bonus-skip">Finish run</button>
         </div>
       </div>
 

@@ -192,6 +192,7 @@ enum {
  *         0x10        beat (next step is on the beat)
  *         0x20..0x22  choose perk card 0..2
  *         0x30 / 0x31 / 0x32  rewind begin / one rewind step / rewind end
+ *         0x33        bonus rewind (granted after a rewarded ad)
  *         0x80 | n    n game steps (1..127)
  *
  * ---- Level format (editor) ----------------------------------------------
@@ -211,6 +212,7 @@ SC_EXPORT int      game_view_size(void);
 SC_EXPORT int      game_rewind_begin(void);
 SC_EXPORT int      game_rewind(int steps);
 SC_EXPORT int      game_rewind_end(void);
+SC_EXPORT int      game_grant_rewind(void);      /* +1 rewind (rewind mode) */
 SC_EXPORT int      game_choose_perk(int i);
 SC_EXPORT uint8_t *game_io_ptr(void);
 SC_EXPORT int      game_load_level(const uint8_t *ptr, int len);

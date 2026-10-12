@@ -194,7 +194,7 @@ export function renderHUD(v, V, g) {
 
 // ---- overlays -----------------------------------------------------------------
 export function hideOverlays() {
-  ['ov-hint', 'ov-perks', 'ov-rewind', 'ov-pause', 'ov-over'].forEach((id) => { $(id).hidden = true; });
+  ['ov-hint', 'ov-perks', 'ov-rewind', 'ov-bonus', 'ov-pause', 'ov-over'].forEach((id) => { $(id).hidden = true; });
 }
 
 export function showHint(text) {

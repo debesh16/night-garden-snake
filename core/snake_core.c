@@ -435,6 +435,16 @@ static int do_rewind_end(Game *g) {
     return 1;
 }
 
+/* One extra rewind, e.g. after a rewarded ad. Recorded so replays still
+   re-simulate exactly. Capped so a run can never hoard rewinds. */
+static int do_grant_rewind(Game *g) {
+    Sim *s = &g->sim;
+    if (s->mode != MODE_REWIND || g->rewinding || s->rewinds_left >= 9) return 0;
+    s->rewinds_left++;
+    rec_byte(g, 0x33);
+    return 1;
+}
+
 /* ------------------------------------------------------------------------ */
 /* exported API                                                             */
 /* ------------------------------------------------------------------------ */
@@ -504,6 +514,13 @@ SC_EXPORT int game_rewind_end(void) {
     return ok;
 }
 
+SC_EXPORT int game_grant_rewind(void) {
+    Game *g = CUR;
+    int ok = g->replaying ? 0 : do_grant_rewind(g);
+    fill_view(g);
+    return ok;
+}
+
 SC_EXPORT int game_choose_perk(int i) {
     Game *g = CUR;
     int ok = g->replaying ? 0 : do_choose(g, i);
@@ -564,6 +581,7 @@ SC_EXPORT int game_replay_advance(void) {
         else if (op == 0x30)            do_rewind_begin(g);
         else if (op == 0x31)            { do_rewind(g, 1); ev = EV_REWOUND; break; }
         else if (op == 0x32)            do_rewind_end(g);
+        else if (op == 0x33)            do_grant_rewind(g);
     }
     fill_view(g);
     return ev;

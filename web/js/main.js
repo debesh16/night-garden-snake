@@ -7,6 +7,7 @@ import * as audio from './audio.js';
 import * as input from './input.js';
 import * as ui from './ui.js';
 import * as online from './online.js';
+import * as portal from './portal.js';
 import { createRenderer, startAmbient } from './render.js';
 import { initEditor } from './editor.js';
 
@@ -60,6 +61,8 @@ function makeCore(m) {
     rewindBegin: () => m._game_rewind_begin(),
     rewind: (n) => m._game_rewind(n),
     rewindEnd: () => m._game_rewind_end(),
+    // older wasm builds lack this export; the rewarded rewind is then not offered
+    grantRewind: typeof m._game_grant_rewind === 'function' ? () => m._game_grant_rewind() : null,
     choose: (i) => m._game_choose_perk(i),
     exportReplay() {
       const n = m._game_export_replay();
@@ -160,6 +163,7 @@ function setupGhost(bytes) {
 }
 
 function stopRun() {
+  portal.gameplay(false);
   audio.stopMusic();
   if (G && G.state === 'rewind') core.rewindEnd();
   G = null;
@@ -220,18 +224,54 @@ function afterTick(ev) {
   if (ev & EV.WON) audio.sfx.win();
   if (ev & EV.PERK_READY) {
     G.state = 'perk';
+    portal.gameplay(false);
     audio.sfx.perk();
     ui.showPerks([v[V.PERK0], v[V.PERK1], v[V.PERK2]], pickPerk);
   }
   if (ev & EV.GAME_OVER) {
-    if (G.mode === M.REWIND && !v[V.WON] && v[V.REWINDS] > 0 && v[V.RW_FILL] > 0) {
-      G.state = 'dead-rewind';
-      $('rw-left').textContent = `${v[V.REWINDS]} rewind${v[V.REWINDS] > 1 ? 's' : ''} left.`;
-      $('ov-rewind').hidden = false;
+    const canRewind = G.mode === M.REWIND && !v[V.WON] && v[V.RW_FILL] > 0;
+    if (canRewind && v[V.REWINDS] > 0) {
+      offerRewind(v);
+    } else if (canRewind && !G.bonusUsed && core.grantRewind && portal.hasRewarded()) {
+      G.state = 'dead-bonus';
+      portal.gameplay(false);
+      $('ov-bonus').hidden = false;
+      $('bonus-watch').focus({ preventScroll: true });
     } else {
       finish();
     }
   }
+}
+
+function offerRewind(v) {
+  G.state = 'dead-rewind';
+  portal.gameplay(false);
+  $('rw-left').textContent = `${v[V.REWINDS]} rewind${v[V.REWINDS] > 1 ? 's' : ''} left.`;
+  $('ov-rewind').hidden = false;
+}
+
+// Out of rewinds: a rewarded ad buys one more, once per run.
+async function watchForRewind() {
+  if (!G || G.state !== 'dead-bonus') return;
+  const run = G;
+  $('bonus-watch').disabled = true;
+  const ok = await portal.rewarded();
+  $('bonus-watch').disabled = false;
+  if (G !== run || run.state !== 'dead-bonus') return;
+  $('ov-bonus').hidden = true;
+  if (ok && core.grantRewind()) {
+    run.bonusUsed = true;
+    offerRewind(core.view());
+  } else {
+    ui.toast('No ad was available, so the run ends here.');
+    finish();
+  }
+}
+
+function skipBonus() {
+  if (!G || G.state !== 'dead-bonus') return;
+  $('ov-bonus').hidden = true;
+  finish();
 }
 
 function pickPerk(i) {
@@ -256,6 +296,7 @@ function rewindKey(down) {
       return;
     }
     G.state = 'rewind';
+    portal.gameplay(true);
     G.rwAcc = REWIND_MS;
     G.hidden = [false, false];
     ui.hideOverlays();
@@ -276,6 +317,7 @@ function rewindKey(down) {
 function finish() {
   const v = core.view();
   G.state = 'over';
+  portal.gameplay(false);
   audio.stopMusic();
   const replay = core.exportReplay();
   const score = v[V.SCORE0];
@@ -323,9 +365,9 @@ function finish() {
   $('over-share').hidden = !shareText;
   $('over-share').textContent = shareText;
   $('over-share-row').hidden = !shareText;
-  $('over-native-share').hidden = !(shareText && navigator.share);
+  $('over-native-share').hidden = !(shareText && navigator.share && portal.allowLinks);
   $('over-ghost').hidden = !(replay && ghostable);
-  $('over-link').hidden = !(replay && ghostable);
+  $('over-link').hidden = !(replay && ghostable && portal.allowLinks);
   run.lastReplay = replay;
   run.shareText = shareText;
   setTimeout(() => {
@@ -333,7 +375,7 @@ function finish() {
     $('ov-rewind').hidden = true;
     $('ov-over').hidden = false;
     $('over-again').focus({ preventScroll: true });
-    if (newBest || v[V.WON]) renderer.fx.confetti();
+    if (newBest || v[V.WON]) { renderer.fx.confetti(); portal.happy(); }
   }, 650);
 }
 
@@ -362,6 +404,7 @@ function pause() {
   if (['play', 'ready', 'rewind'].includes(G.state)) {
     if (G.state === 'rewind') rewindKey(false);
     G.state = 'paused';
+    portal.gameplay(false);
     audio.stopMusic();
     G.beatQueue = [];
     G.musicOn = false;
@@ -401,6 +444,7 @@ function onDir(p, d) {
   if (G.state === 'ready') {
     core.input(p, d);
     G.state = 'play';
+    portal.gameplay(true);
     G.acc = 0;
     $('ov-hint').hidden = true;
     audio.ensure();
@@ -685,6 +729,7 @@ function wireSettings() {
 // ---- boot ----------------------------------------------------------------------------------------------
 async function boot() {
   if (typeof window.createSnake !== 'function') throw new Error('snake.js did not load');
+  const portalReady = portal.init();   // loads the portal SDK while the wasm loads
   const m = await window.createSnake();
   core = makeCore(m);
 
@@ -709,6 +754,7 @@ async function boot() {
       if (!G || document.body.dataset.screen !== 'game') return false;
       if (G.state === 'over') { $('over-again').click(); return true; }
       if (G.state === 'dead-rewind') { $('ov-rewind').hidden = true; finish(); return true; }
+      if (G.state === 'dead-bonus') { skipBonus(); return true; }
       if (G.state === 'paused') { resume(); return true; }
       return false;
     },
@@ -719,6 +765,7 @@ async function boot() {
   input.attachHold($('rw-hold'), 'rewind');
 
   // buttons
+  $('play-now').onclick = () => startGame({ mode: M.CLASSIC });
   $('daily-play').onclick = playDaily;
   $('daily-copy').onclick = () => copyText(store.get().daily.lastResult, 'Result copied.');
   $('continue-last').onclick = () => {
@@ -734,8 +781,11 @@ async function boot() {
   $('pause-resume').onclick = resume;
   $('pause-restart').onclick = () => G && restart();
   $('pause-menu').onclick = toMenu;
-  $('over-menu').onclick = toMenu;
-  $('over-again').onclick = () => G && restart();
+  // interstitial ads only ever show between runs, on these two buttons
+  $('over-menu').onclick = () => portal.breakThen(toMenu);
+  $('over-again').onclick = () => G && portal.breakThen(() => G && restart());
+  $('bonus-watch').onclick = watchForRewind;
+  $('bonus-skip').onclick = skipBonus;
   $('over-ghost').onclick = () => G && G.lastReplay && raceGhost(G.lastReplay);
   $('over-link').onclick = () => {
     if (!G || !G.lastReplay) return;
@@ -752,9 +802,23 @@ async function boot() {
     window.addEventListener('blur', () => { if (G && ['play', 'rewind'].includes(G.state)) pause(); });
   }
 
-  online.init().then((ok) => { if (ok) renderDaily(); });
-  if (!readHash()) openMenu();
-  else ui.renderMenu(menuHandlers);
+  if (!portal.allowLinks) {
+    $('ed-share').hidden = true;
+  }
+  portal.onPauseRequest(() => { if (G && ['play', 'rewind'].includes(G.state)) pause(); });
+  await portalReady;
+  portal.loadingDone();
+
+  if (!portal.embedded) online.init().then((ok) => { if (ok) renderDaily(); });
+  if (portal.allowLinks && readHash()) {
+    ui.renderMenu(menuHandlers);
+  } else if (portal.name !== 'web') {
+    // portal builds drop the player straight into a game; the menu is one tap away
+    ui.renderMenu(menuHandlers);
+    startGame({ mode: M.CLASSIC });
+  } else {
+    openMenu();
+  }
   // test hook for automated play-testing only: http://host/?debug
   if (DEBUG) window.snakeDebug = { core, V, EV, get G() { return G; } };
   nextFrame(frame);

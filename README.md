@@ -25,9 +25,10 @@ night-garden-snake/
 ├── web/                    the static site, ready to host as-is
 │   ├── index.html
 │   ├── css/style.css
-│   ├── js/                 main, render, input, audio, storage, ui, editor, online
+│   ├── js/                 main, render, input, audio, storage, ui, editor, online, portal
 │   ├── wasm/               snake.js + snake.wasm (committed build)
-│   └── assets/             favicon.svg, og-image.png
+│   └── assets/             favicon.svg, og-image.png, fonts/
+├── tools/build_portals.py  builds one upload-ready zip per game portal
 └── server/                 optional online backend (C CGI + MySQL)
 ```
 
@@ -146,6 +147,26 @@ If you change the state layout in `core/snake_core.h`, update the matching `V` t
 
 **Other hosts:** Netlify (drag the `web/` folder onto the dashboard), Vercel (static project, no build command, output folder `web`) and itch.io (zip the contents of `web/` and upload it as an HTML game).
 
+## Game portal builds
+
+The same `web/` folder runs on CrazyGames, Poki, Yandex Games and GameDistribution. `js/portal.js` is the only file that talks to a portal SDK. It reads `data-portal` on `<html>` (`web` by default, where every ad call does nothing). If an SDK fails to load, the game keeps running without ads.
+
+```bash
+python tools/build_portals.py
+```
+
+This writes `dist/night-garden-snake-<portal>.zip` for each portal, with `index.html` at the root. The "Portal builds" GitHub Action makes the same zips on every push to `main` and rebuilds the WebAssembly first. Download them from the run's Artifacts. For GameDistribution, set `GD_GAME_ID` (a repository variable in Actions, or an environment variable locally) to the id from their dashboard.
+
+What changes in a portal build:
+
+- The game starts straight into a Classic round, because portals measure how many visitors actually start playing. The menu is one tap away.
+- Interstitial ads only appear on the game-over screen's "Play again" and "Menu" buttons. None show in the first minute, and after that at most one every 3 minutes.
+- In Rewind mode, a player who runs out of rewinds can watch a rewarded ad for one more, once per run. The core records this as replay op `0x33`, so replays and server checks stay exact.
+- Ghost links, level share links and the native share sheet are hidden, because the page URL belongs to the portal. The online server is not used.
+- Sound goes silent during ads, when the portal asks, and while the tab is hidden.
+
+To try a portal locally, add `?portal=crazygames` (or `poki`, `yandex`, `gamedistribution`) to the local URL. On localhost the CrazyGames SDK shows placeholder ads.
+
 ## Optional online features
 
 Daily top run, ranked score submission and community levels need the server in `server/`: a C CGI program that uses the same `core/` code to re-simulate every submitted replay, plus a MySQL schema. It runs on Linux with Apache. Step-by-step setup is in [server/README_SERVER.md](server/README_SERVER.md). Database credentials are passed as environment variables (Apache `SetEnv`), never stored in the code.
@@ -159,8 +180,9 @@ To connect the game, set `API_BASE` in `web/js/online.js`. With `API_BASE` empty
 - Rhythm mode needs Web Audio for its music. If the browser blocks audio, the snake still moves on the same beat using a timer.
 - Ghost replays and the share format are tied to this version of the core. Changing the rules in `core/` can make old ghosts replay differently.
 - Hex boards cannot be made in the editor; it supports walls, torus and Möbius edges.
+- The rewarded rewind needs a WebAssembly build made from the current `core/`. The deploy and portal workflows rebuild it. If `web/wasm/` is older, the game simply never offers it.
 - `og:image` and `og:url` in `index.html` point at the GitHub Pages address. Change them if you host the game somewhere else.
 
 ## License
 
-[MIT](LICENSE)
+All rights reserved. You may read the source and play the game, but copying, modifying, re-hosting or uploading it to game portals needs written permission. See [LICENSE](LICENSE).

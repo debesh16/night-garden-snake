@@ -1,0 +1,32 @@
+# Builds the upload-ready zip for each game portal. Download them from the
+# run's "Artifacts" section. Add a repository variable GD_GAME_ID (Settings ->
+# Secrets and variables -> Actions -> Variables) once GameDistribution gives
+# you a game id.
+name: Portal builds
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: emscripten-core/setup-emsdk@v15
+        with:
+          version: 4.0.10
+      - name: Rebuild web/wasm from core/
+        run: make -B wasm
+      - name: Build portal zips
+        env:
+          GD_GAME_ID: ${{ vars.GD_GAME_ID }}
+        run: python3 tools/build_portals.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: night-garden-snake-portals
+          path: dist/*.zip

@@ -20,13 +20,29 @@ export function ensure() {
     master.connect(ctx.destination);
     applyGain();
   }
-  if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+  if (ctx.state === 'suspended' && !document.hidden) ctx.resume().catch(() => {});
   return ctx;
 }
 
+// Reasons to stay silent apart from the player's own mute: an ad is playing,
+// the portal asked for silence, or the tab is hidden.
+const holds = new Set();
+
 function applyGain() {
-  if (master) master.gain.value = muted ? 0 : volume * 0.6;
+  if (master) master.gain.value = muted || holds.size ? 0 : volume * 0.6;
 }
+
+export function hold(reason, on) {
+  if (on) holds.add(reason); else holds.delete(reason);
+  applyGain();
+}
+
+document.addEventListener('visibilitychange', () => {
+  hold('hidden', document.hidden);
+  if (!ctx) return;
+  if (document.hidden) ctx.suspend().catch(() => {});
+  else ctx.resume().catch(() => {});
+});
 
 export function setMuted(m) { muted = m; applyGain(); }
 export function setVolume(v) { volume = v; applyGain(); }

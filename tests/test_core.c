@@ -160,6 +160,29 @@ int main(void) {
         CHECK(game_state_ptr()[V_FOOD + 1] == FRUIT_APPLE, "first fruit apple");
     }
 
+    /* bonus rewind (rewarded ad): only in rewind mode, recorded in the replay */
+    {
+        Summary a, b;
+        int len = 0;
+        game_select(0);
+        game_new(MODE_CLASSIC, 0, 5, 0);
+        CHECK(!game_grant_rewind(), "no bonus rewind outside rewind mode");
+        game_new(MODE_REWIND, 0, 5, 0);
+        CHECK(game_grant_rewind() && game_state_ptr()[V_REWINDS] == 4, "bonus rewind adds one");
+        for (int t = 0; t < 4000 && game_state_ptr()[V_STATUS] != ST_OVER; t++) game_step();
+        CHECK(game_rewind_begin(), "bonus rewind usable after a crash");
+        game_rewind(8);
+        game_rewind_end();
+        for (int t = 0; t < 4000 && game_state_ptr()[V_STATUS] != ST_OVER; t++) game_step();
+        summarize(&a);
+        len = game_export_replay();
+        memcpy(replay_buf, game_io_ptr(), (size_t)len);
+        resimulate(len, &b);
+        CHECK(memcmp(&a, &b, sizeof a) == 0, "replay with a bonus rewind re-simulates exactly");
+        for (int i = 0; i < 20; i++) game_grant_rewind();
+        CHECK(game_state_ptr()[V_REWINDS] == 9, "bonus rewinds capped at 9");
+    }
+
     printf("%d games, best %d fruit, %d perk runs, %d rewinds used, %d failures\n",
            games, max_fruits, perk_screens, total_rewinds, failures);
     return failures ? 1 : 0;

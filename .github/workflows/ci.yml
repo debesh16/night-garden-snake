@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  core-tests:
+    name: Core tests (Linux, gcc)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run the determinism tests
+        run: make test
+
+  windows:
+    name: Core tests + console game (Windows, MinGW)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          install: make mingw-w64-x86_64-gcc
+      - name: Build and run the determinism tests
+        run: make test
+      - name: Build the console game
+        run: make console
+
+  wasm:
+    name: WebAssembly build (Emscripten)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: emscripten-core/setup-emsdk@v15
+        with:
+          version: 4.0.10
+      - name: Rebuild web/wasm from core/
+        run: make -B wasm
+      - name: Check the output exists
+        run: ls -l web/wasm/snake.js web/wasm/snake.wasm
+
+  server:
+    name: Server CGI build (MySQL client)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the MySQL client library
+        run: sudo apt-get update && sudo apt-get install -y libmysqlclient-dev libcrypt-dev
+      - name: Compile server/api.c
+        working-directory: server
+        run: |
+          gcc -std=gnu99 -O2 -Wall -Wextra -I../core api.c \
+            ../core/snake_core.c ../core/rng.c ../core/board.c ../core/level.c ../core/replay.c \
+            ../core/modes/perks.c ../core/modes/rewind.c ../core/modes/daily.c \
+            $(mysql_config --cflags --libs) -lcrypt -o snake-api.cgi
+      - name: Smoke-test the ping action (no database needed)
+        working-directory: server
+        run: REQUEST_METHOD=GET QUERY_STRING=action=ping ./snake-api.cgi | grep -q '"ok":true'

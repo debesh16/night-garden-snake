@@ -1,0 +1,8 @@
+* text=auto eol=lf
+*.bat text eol=crlf
+
+*.wasm binary
+*.png binary
+
+# Emscripten output, committed so hosting needs no build step; kept byte for byte
+web/wasm/snake.js -text -whitespace linguist-generated

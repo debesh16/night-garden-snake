@@ -1,0 +1,20 @@
+# Native builds (make test / make console, or the gcc commands in the README)
+*.exe
+*.o
+*.obj
+test_core
+snake_console
+
+# Server build
+*.cgi
+
+# Emscripten SDK, if cloned into the project
+emsdk/
+
+# Editors and OS files
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini

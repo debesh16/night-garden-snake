@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cut">
+<title>Night Garden Snake</title>
+<meta name="description" content="Snake in a night garden: rewind time, pick perk cards, race ghosts, play the daily seed. Game rules are written in C and run as WebAssembly.">
+<meta name="theme-color" content="#0E1A20">
+<meta property="og:title" content="Night Garden Snake">
+<meta property="og:description" content="Rewind, perks, weird boards, rhythm, darkness, ice, daily seed, 2-player and a level editor.">
+<meta property="og:image" content="assets/og-image.png">
+<meta property="og:type" content="website">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="ambient" aria-hidden="true"></canvas>
+
+<main id="app">
+  <!-- ============ MENU ============ -->
+  <section id="screen-menu" class="screen is-active" aria-labelledby="title">
+    <header class="brand">
+      <h1 id="title">Snake</h1>
+      <p class="tagline">A night-garden snake. Pick a way to play.</p>
+    </header>
+
+    <div id="welcome" class="banner" hidden></div>
+    <div id="friend-ghost" class="banner banner-ghost" hidden></div>
+
+    <div class="menu-grid">
+      <nav class="modes" id="mode-list" aria-label="Game modes"></nav>
+
+      <aside class="side">
+        <div class="daily" id="daily-card">
+          <h2>Daily seed <span id="daily-number"></span></h2>
+          <p id="daily-text">Everyone gets the same board today. One scored try.</p>
+          <div class="row">
+            <button class="btn btn-primary" id="daily-play">Play today’s board</button>
+            <button class="btn" id="daily-copy" hidden>Copy result</button>
+          </div>
+          <p class="daily-streak" id="daily-streak"></p>
+          <div id="daily-top" data-online hidden></div>
+        </div>
+
+        <div class="stats" id="stats" aria-live="polite"></div>
+
+        <div class="menu-actions">
+          <button class="btn" id="continue-last" hidden>Continue last settings</button>
+          <button class="btn" id="open-editor">Level editor</button>
+          <button class="btn" id="open-community" data-online hidden>Community levels</button>
+          <button class="btn btn-quiet" id="open-settings">Settings</button>
+          <button class="btn btn-quiet" id="open-help">How to play</button>
+        </div>
+        <p class="nick-line">Playing as <button class="link" id="nick-edit"></button></p>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ GAME ============ -->
+  <section id="screen-game" class="screen" aria-label="Game">
+    <div class="hud" id="hud">
+      <div class="hud-left">
+        <button class="icon-btn" id="btn-menu" aria-label="Back to menu" title="Menu (Esc)">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <span class="hud-mode" id="hud-mode">Classic</span>
+      </div>
+      <div class="hud-scores" id="hud-scores"></div>
+      <div class="hud-right">
+        <span class="hud-chips" id="hud-chips"></span>
+        <button class="icon-btn" id="btn-mute" aria-label="Mute sound" title="Mute (M)"></button>
+        <button class="icon-btn" id="btn-pause" aria-label="Pause" title="Pause (P)">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M8 5v14M16 5v14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="stage" id="stage">
+     <div class="board-wrap">
+      <canvas id="board" aria-label="Game board"></canvas>
+      <div class="scanlines" aria-hidden="true"></div>
+      <div class="combo" id="combo" aria-hidden="true"></div>
+
+      <!-- start hint -->
+      <div class="overlay overlay-hint" id="ov-hint" hidden>
+        <p id="hint-text">Press an arrow key or swipe to start</p>
+      </div>
+
+      <!-- perks -->
+      <div class="overlay" id="ov-perks" hidden>
+        <h2>Pick a card</h2>
+        <div class="cards" id="cards"></div>
+        <p class="hint">Keys 1, 2, 3 or tap a card</p>
+      </div>
+
+      <!-- rewind prompt after death -->
+      <div class="overlay overlay-soft" id="ov-rewind" hidden>
+        <h2>You crashed</h2>
+        <p>Hold <kbd>R</kbd> to rewind time. <span id="rw-left"></span></p>
+        <div class="row">
+          <button class="btn btn-primary" id="rw-hold">Hold to rewind</button>
+          <button class="btn" id="rw-finish">Finish run</button>
+        </div>
+      </div>
+
+      <!-- pause -->
+      <div class="overlay" id="ov-pause" hidden>
+        <h2>Paused</h2>
+        <div class="row">
+          <button class="btn btn-primary" id="pause-resume">Resume</button>
+          <button class="btn" id="pause-restart">Restart</button>
+          <button class="btn" id="pause-menu">Menu</button>
+        </div>
+      </div>
+
+      <!-- game over -->
+      <div class="overlay" id="ov-over" hidden>
+        <h2 id="over-title">Game over</h2>
+        <p class="over-score" id="over-score"></p>
+        <p class="over-detail" id="over-detail"></p>
+        <pre class="share-text" id="over-share" hidden></pre>
+        <div class="row" id="over-share-row" hidden>
+          <button class="btn btn-primary" id="over-copy">Copy result</button>
+          <button class="btn" id="over-native-share" hidden>Share</button>
+        </div>
+        <div class="row">
+          <button class="btn btn-primary" id="over-again">Play again</button>
+          <button class="btn" id="over-ghost" hidden>Race this run</button>
+          <button class="btn" id="over-link" hidden>Copy ghost link</button>
+          <button class="btn" id="over-menu">Menu</button>
+        </div>
+      </div>
+     </div>
+    </div>
+
+    <div class="pad" id="pad" aria-label="Touch controls">
+      <div class="dpad" id="dpad">
+        <button data-dir="0" aria-label="Up">▲</button>
+        <button data-dir="3" aria-label="Left">◀</button>
+        <button data-dir="1" aria-label="Right">▶</button>
+        <button data-dir="2" aria-label="Down">▼</button>
+      </div>
+      <div class="hexpad" id="hexpad" hidden>
+        <button data-dir="2" aria-label="Up left">↖</button>
+        <button data-dir="1" aria-label="Up right">↗</button>
+        <button data-dir="3" aria-label="Left">←</button>
+        <button data-dir="0" aria-label="Right">→</button>
+        <button data-dir="4" aria-label="Down left">↙</button>
+        <button data-dir="5" aria-label="Down right">↘</button>
+      </div>
+      <button class="rewind-btn" id="pad-rewind" hidden>Hold to rewind</button>
+    </div>
+  </section>
+
+  <!-- ============ EDITOR ============ -->
+  <section id="screen-editor" class="screen" aria-label="Level editor">
+    <div class="editor-bar">
+      <button class="icon-btn" id="ed-back" aria-label="Back to menu">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <h2>Level editor</h2>
+      <label class="field-inline">Edges
+        <select id="ed-shape">
+          <option value="0">Walls</option>
+          <option value="1">Torus (wrap)</option>
+          <option value="2">Möbius</option>
+        </select>
+      </label>
+    </div>
+    <div class="editor-body">
+      <div class="tools" id="ed-tools" role="toolbar" aria-label="Paint tools"></div>
+      <div class="ed-stage"><canvas id="ed-canvas"></canvas></div>
+      <div class="ed-actions">
+        <p class="ed-status" id="ed-status">Paint with the mouse or a finger. Portals are placed in pairs.</p>
+        <label class="field">Level name <input id="ed-name" maxlength="40" placeholder="Untitled garden"></label>
+        <button class="btn btn-primary" id="ed-play">Play level</button>
+        <button class="btn" id="ed-share">Copy share link</button>
+        <button class="btn" id="ed-publish" data-online hidden>Publish to community</button>
+        <button class="btn btn-quiet" id="ed-clear">Clear board</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ COMMUNITY ============ -->
+  <section id="screen-community" class="screen" aria-label="Community levels">
+    <div class="editor-bar">
+      <button class="icon-btn" id="cm-back" aria-label="Back to menu">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <h2>Community levels</h2>
+    </div>
+    <ul class="community" id="cm-list"></ul>
+  </section>
+</main>
+
+<!-- ============ DIALOGS ============ -->
+<dialog id="dlg-settings" aria-labelledby="set-title">
+  <form method="dialog">
+    <h2 id="set-title">Settings</h2>
+    <label class="field">Nickname <input id="set-nick" maxlength="16"></label>
+    <label class="field">Volume <input type="range" id="set-volume" min="0" max="100"></label>
+    <label class="check"><input type="checkbox" id="set-mute"> Mute all sound</label>
+    <label class="field">Theme
+      <select id="set-theme"><option value="night">Night garden</option><option value="dawn">Dawn garden</option></select>
+    </label>
+    <label class="field">Touch controls
+      <select id="set-controls"><option value="both">Swipe and buttons</option><option value="swipe">Swipe only</option><option value="buttons">Buttons only</option></select>
+    </label>
+    <div class="danger">
+      <button type="button" class="btn btn-danger" id="set-reset">Reset my data</button>
+      <span>Deletes scores, ghosts, streaks and settings on this device.</span>
+    </div>
+    <div class="row end"><button class="btn btn-primary" value="ok">Done</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlg-help" aria-labelledby="help-title">
+  <form method="dialog">
+    <h2 id="help-title">How to play</h2>
+    <ul class="help">
+      <li><b>Move</b> with arrow keys or WASD, swipe, or the on-screen pad. Two quick presses inside one step are both kept.</li>
+      <li><b>Hex board</b>: six keys steer:Q ↖, W ↗, E →, D ↘, S ↙, A ←. Arrow keys also work.</li>
+      <li><b>Rewind</b>: hold R or Backspace. Three uses per run.</li>
+      <li><b>Pause</b>: P or Esc. <b>Mute</b>: M.</li>
+      <li><b>Two players</b>: green uses WASD, mint uses the arrow keys. Crashing into anything ends your round; heads colliding is a draw.</li>
+      <li><b>Fruit</b> cycles apple, banana, grapes. Each one speeds you up a little.</li>
+    </ul>
+    <div class="row end"><button class="btn btn-primary" value="ok">Got it</button></div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="wasm/snake.js"></script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

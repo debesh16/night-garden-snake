@@ -143,7 +143,7 @@ If you change the state layout in `core/snake_core.h`, update the matching `V` t
 
 `web/` is a complete static site with no build step, so any static host works.
 
-**GitHub Pages:** in the repository, open Settings, then Pages, and set Source to "GitHub Actions". Then open the Actions tab, pick "Deploy to GitHub Pages" and click "Run workflow". It publishes `web/` to `https://<your-name>.github.io/<repository>/`.
+**GitHub Pages:** in the repository, open Settings, then Pages, and set Source to "GitHub Actions". Every push to `main` then runs "Deploy to GitHub Pages", which publishes `web/` to `https://<your-name>.github.io/<repository>/`.
 
 **Other hosts:** Netlify (drag the `web/` folder onto the dashboard), Vercel (static project, no build command, output folder `web`) and itch.io (zip the contents of `web/` and upload it as an HTML game).
 

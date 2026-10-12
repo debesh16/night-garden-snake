@@ -1,8 +1,11 @@
-# Publishes the web/ folder to GitHub Pages. Run it by hand from the Actions
-# tab after setting Settings -> Pages -> Source to "GitHub Actions".
+# Publishes the web/ folder to GitHub Pages on every push to main (or by
+# hand from the Actions tab). Needs Settings -> Pages -> Source set to
+# "GitHub Actions".
 name: Deploy to GitHub Pages
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
